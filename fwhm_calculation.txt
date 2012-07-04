@@ -1,0 +1,79 @@
+# -*- coding: utf-8 -*-
+from ROOT import *
+import sys
+
+filelist = ['mb22a001_000.amp.root','mb22a001_001.amp.root','mb22a001_002.amp.root','mb22a001_003.amp.root','mb22a001_004.amp.root','mb22a001_005.amp.root','mb22a001_006.amp.root','mb22a001_007.amp.root','mb22a001_008.amp.root','mb22a001_009.amp.root','mb22a001_010.amp.root','mb22a001_011.amp.root','mb22a001_012.amp.root','mb22a001_013.amp.root','mb22a001_014.amp.root','mb22a001_015.amp.root','mb22a001_016.amp.root','mb22a001_017.amp.root','mb22a001_018.amp.root','mb22a001_019.amp.root']
+
+params = {}
+params['chalA FID807'] = {}
+params['chalA FID807']['range'] = [180,30,1200]
+params['chalB FID807'] = {}
+params['chalB FID807']['range'] = [100,3,40]
+params['chalA FID808'] = {}
+params['chalA FID808']['range'] = [1800,-1500,1500]
+params['chalB FID808'] = {}
+params['chalB FID808']['range'] = [180,3,200]
+
+#if __name__ == '__main__':
+channel = 'chalA FID808'
+par = params[channel]
+files = []
+tree = []
+for file in filelist:
+  files.append(TFile(file))
+
+hspectrum = TH1F("hspectrum",channel+' spectrum',par['range'][0],par['range'][1],par['range'][2])
+baseline = TH1F("hbaseline",channel+' baseline',200,-10.,10.)
+for i in range(len(files)):
+  tree.append(files[i].Get("t"))
+
+
+for i in range(len(tree)):
+  tree[i].Draw("fPulseAna.fAmp/(-1.)>>+hspec_valid("+str(par['range'][0])+','+str(par['range'][1])+','+str(par['range'][2])+")","fPulseAna.GetName()==\"FeldbergKAmper-Heat-Fixed\" && fPulseAna.GetBoloPulseRecord().GetChannelName()==\""+channel+"\" && fPulseAna.GetExtra(3)==0")
+  hspectrum.Add(gDirectory.Get("hspec_valid"))
+
+canv1 = TCanvas()
+canv1.cd()
+hspectrum.Draw()
+peaknr = hspectrum.ShowPeaks(5)
+marker = hspectrum.GetListOfFunctions().Last()
+counter = 0
+maximum = 0
+markernr = 0
+scale = 1
+skip = []
+done = False
+while not done:
+  for i in range(peaknr):
+    if marker.GetY()[i]>maximum and i not in skip:
+      maximum = marker.GetY()[i]
+      markernr = i
+  for i in range(peaknr):
+    if(marker.GetX()[i]>marker.GetX()[markernr]):
+      counter = counter + 1
+  if counter>1:
+    print "WARNING Counter:",counter
+    skip.append(markernr)
+    counter = 0
+    maximum = 0
+    markernr = 0
+  else:
+    done = True
+    scale = 356./marker.GetX()[markernr]
+
+
+canv2 = TCanvas()
+canv2.cd()
+for i in range(len(tree)):
+  tree[i].Draw("fPulseAna.fAmp*("+str(scale)+")>>+hbase(200,-10.,10.)","fPulseAna.GetName()==\"FeldbergKAmper-Heat\" && fPulseAna.GetBoloPulseRecord().GetChannelName()==\""+channel+"\"")
+  baseline.Add(gDirectory.Get("hbase"))
+
+baseline.Draw()
+base_gaus = TF1("base_gaus","gaus",-8,8)
+baseline.Fit(base_gaus)
+print "FWHM:",base_gaus.GetParameter(2)*2.33
+print "Used peak at:", marker.GetX()[markernr]
+for i in range(peaknr):
+  print "X:",marker.GetX()[i]," Y:",marker.GetY()[i]
+
+
