@@ -11,14 +11,44 @@ plt.ion()
 #heatChanList = {"chalA FID807":512, "chalB FID807":512, "chalA FID808":512, "chalB FID808":512}
 
     
+def submitBatch(runName):
+
+  scriptDir = '/sps/edelweis/adam/feldberg'
+  script =   os.path.join(scriptDir, 'runFeldbergKamper.py')
+  scriptOut = os.path.join(scriptDir, 'batchOut')
+  scriptErr = os.path.join(scriptDir, 'batchErr')
+  dataOut= os.path.join(scriptDir, 'dataOut')
+
+  try:
+    db = kdb.kdatadb(serverName = 'http://localhost:5984')
+    print db.info()
+  except:
+    db = kdb.kdatadb()
+    print db.info()
+
+  vr = db.view('proc/raw', key=runName)
+  for row in vr:
+    doc = row['doc']
+    intputFile = doc['proc1']['file']
+    outputFile = os.path.join(dataOut, os.path.basename(inputFile).strip('.root') + '.feldberg.root')
+
+    command = 'qsub -P P_edelweis -o %s -e %s -l sps=1 -l vmem=15G -l fsize=11000M  %s %s %s %s' % (scriptOut, scriptErr, script, runName, inputFile, outputFile ) 
+  
+    proc = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE,)
+    val = proc.communicate()[0]
+    if val != '':
+      print val
+
 def runProcess(runName, inputFile, outputFile):
 
 
   kounselor = ROOT.KAmpKounselor()
   try:
     db = kdb.kdatadb(serverName = 'http://localhost:5984')
+    print db.info()
   except:
     db = kdb.kdatadb()
+    print db.info()
 
   ionChanList = {}
   heatChanList = {}
@@ -37,8 +67,10 @@ def runProcess(runName, inputFile, outputFile):
 
   try:
     db = kdb.kmultiprocdb(serverName = 'http://localhost:5984')
+    print db.info()
   except:
     db = kdb.kmultiprocdb()
+    print db.info()
 
   #this is the list of filters to applied separately to the different heat channels
   vr = db.view('channel/bydate', reduce=False,startkey=["scanFilters_binwidth2.016ms",""], limit=1, include_docs=True)
@@ -61,15 +93,17 @@ def runProcess(runName, inputFile, outputFile):
   for f in heatFilters:
     print ''
     print 'new feldberg kampsite --', f
-    
+
     fbk = ROOT.KFeldbergKAmpSite()
         
     try:
       server = couchdbkit.Server('http://localhost:5984')
       db_template = server['pulsetemplates']
+      print db_template.info()
     except:
       server = couchdbkit.Server('http://edwdbik.fzk.de:5984')
       db_template = server['pulsetemplates']
+      print db_template.info()
 
     feldberglist.append(fbk)
 
@@ -154,6 +188,8 @@ def runProcess(runName, inputFile, outputFile):
   print 'elapsed time', endtime - starttime
 
 
-    
-  
+   
+if __name__ == '__main__':
+  runProcess(sys.argv[1], sys.argv[2], sys.argv[3])
+
   
